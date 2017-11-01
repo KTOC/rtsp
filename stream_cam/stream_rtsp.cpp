@@ -3,10 +3,10 @@
 #include <sys/types.h>
 //#include <string>
 #include <time.h>
-//#include <opencv2/core/core.hpp>
-//#include <opencv2/highgui/highgui.hpp>
-//#include <opencv2/opencv.hpp>
-//#include <opencv2/imgproc/types_c.h>
+#include <opencv2/core/core.hpp>
+#include <opencv2/highgui/highgui.hpp>
+#include <opencv2/opencv.hpp>
+#include <opencv2/imgproc/types_c.h>
 #include <gstreamer-1.0/gst/gstelement.h>
 #include <gstreamer-1.0/gst/gstpipeline.h>
 #include <gstreamer-1.0/gst/gstutils.h>
@@ -18,24 +18,14 @@
 #include <glib.h>
 //#include <pthread.h>
 #include <stdlib.h>
-#include "firedetection.h"
-//#include "firedetection.h"
 
-vector<ContourInfo*> xContours;
-vector<ContourInfo*> saveContours;
 
-//debug:
-/*
-#define GST_CAT_DEFAULT appsrc_pipeline_debug
-GST_DEBUG_CATEGORY (appsrc_pipeline_debug);
-//GST_DEBUG_CATEGORY (pipeline_debug);
-*/
        
 using namespace std;
 using namespace cv;
 
 
-int cameraWidth = 640;
+int cameraWidth = 720;
 int cameraHeight = 480;
 
 static pthread_mutex_t m = PTHREAD_MUTEX_INITIALIZER; //mutex per la mutua esclusione
@@ -251,7 +241,7 @@ void *thread2new(void *arg){
     //x264enc, width và height trong capsfilter = cameraWidth và cameraHeight
 /*
     gst_rtsp_media_factory_set_launch (factory,
-      "( appsrc name=mysrc ! videoconvert ! capsfilter caps=video/x-raw,format=I420,width=640,height=480,framerate=15/1,pixel-aspect-ratio=1/1 ! x264enc bitrate=256 noise-reduction=10000 tune=zerolatency pass=qual ! rtph264pay config-interval=1 name=pay0 pt=96 )");
+      "( appsrc name=mysrc ! videoconvert ! capsfilter caps=video/x-raw,format=I420,width=720,height=480,framerate=15/1,pixel-aspect-ratio=1/1 ! x264enc bitrate=256 noise-reduction=10000 tune=zerolatency pass=qual ! rtph264pay config-interval=1 name=pay0 pt=96 )");
 */
 
     g_signal_connect (factory, "media-configure", (GCallback) media_configure, NULL);
@@ -280,13 +270,13 @@ void *thread2new(void *arg){
 void *thread1(void *arg){
     VideoCapture cap(0);
     Mat tempframe, result;
-    FireDetection FD;
+   // FireDetection FD;
 
     if (!cap.isOpened()) {
         throw "Error when reading steam_avi";
     }
-	//cap.set(CV_CAP_PROP_FRAME_WIDTH, 720);
-	//cap.set(CV_CAP_PROP_FRAME_HEIGHT, 480);
+	cap.set(CV_CAP_PROP_FRAME_WIDTH, 720);
+	cap.set(CV_CAP_PROP_FRAME_HEIGHT, 480);
 
 
     while (1) {
