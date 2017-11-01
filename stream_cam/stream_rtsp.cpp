@@ -1,16 +1,12 @@
-//compile: g++ -std=c++11 rtsp_new.cpp -o rtsp_new -lpthread -lgstapp-1.0 `pkg-config --libs --cflags opencv gstreamer-1.0 gstreamer-rtsp-server-1.0`
-//view: gst-launch-1.0 rtspsrc location=rtsp://127.0.0.1:8554/test latency=10 ! rtph264depay ! avdec_h264 ! videoconvert ! autovideosink
-//	vlc
-
-#include <iostream>
+//#include <iostream>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <string>
+//#include <string>
 #include <time.h>
-#include <opencv2/core/core.hpp>
-#include <opencv2/highgui/highgui.hpp>
-#include <opencv2/opencv.hpp>
-#include <opencv2/imgproc/types_c.h>
+//#include <opencv2/core/core.hpp>
+//#include <opencv2/highgui/highgui.hpp>
+//#include <opencv2/opencv.hpp>
+//#include <opencv2/imgproc/types_c.h>
 #include <gstreamer-1.0/gst/gstelement.h>
 #include <gstreamer-1.0/gst/gstpipeline.h>
 #include <gstreamer-1.0/gst/gstutils.h>
@@ -20,12 +16,13 @@
 #include <gstreamer-1.0/gst/gst.h>
 #include <gst/rtsp-server/rtsp-server.h>
 #include <glib.h>
-#include <pthread.h>
+//#include <pthread.h>
 #include <stdlib.h>
+#include "firedetection.h"
 //#include "firedetection.h"
 
-//vector<ContourInfo*> xContours;
-//vector<ContourInfo*> saveContours;
+vector<ContourInfo*> xContours;
+vector<ContourInfo*> saveContours;
 
 //debug:
 /*
@@ -37,11 +34,16 @@ GST_DEBUG_CATEGORY (appsrc_pipeline_debug);
 using namespace std;
 using namespace cv;
 
+
+int cameraWidth = 640;
+int cameraHeight = 480;
+
 static pthread_mutex_t m = PTHREAD_MUTEX_INITIALIZER; //mutex per la mutua esclusione
 GMainLoop *loop; //loop di gstreamer
-typedef struct _App App;
+//typedef struct _App App;
 
 //struttura da usare per il thread di gstreamer:
+/*
 struct _App{
 GstElement *ffmpeg;
 //GstElement *ffmpeg2;
@@ -56,7 +58,7 @@ guint sourceid;
 GstElement *queue;
 GTimer *timer;
 };
-App s_app;
+App s_app;*/
 
 typedef struct
 {
@@ -85,41 +87,24 @@ Mat frameimage;
 
 static void need_data (GstElement * appsrc, guint unused, MyContext * ctx){  
 
-    //cvNamedWindow( "iplimage", CV_WINDOW_AUTOSIZE );
     //static GstClockTime timestamp = 0;
     GstBuffer *buffer;
     guint buffersize;
     GstFlowReturn ret;
     GstMapInfo info;
 
-    //counter++;
     //m.lock();
     pthread_mutex_lock( &m );
-                /*
-                //logo dii
-                dii3 = imread("/home/style/groovy_workspace/sandbox/maris_hmi/resources/diilogo.jpg");
-                if(! dii3.data ){
-                    cout <<  "Could not open or find image" << std::endl ;
-                }
-                dst_roi = frameimage(Rect(5,5, dii3.cols, dii3.rows));
-                dii3.copyTo(dst_roi);
-                */
-                /*
-                //finestra:
-                //win = imread("/home/style/groovy_workspace/sandbox/maris_hmi/resources/window17_contorno.png");
-                if(! win.data ){
-                    cout <<  "Could not open or find image" << std::endl ;
-                }
-                overlayImage(frameimage,win,dst,cv::Point(0,0));
-                */
+                
     
         buffersize = frameimage.cols * frameimage.rows * frameimage.channels();
          
         buffer = gst_buffer_new_and_alloc(buffersize);
 
         uchar *  IMG_data = frameimage.data;
-    //m.unlock();
+    
     pthread_mutex_unlock( &m );    
+    //m.unlock();
 
         if (gst_buffer_map (buffer, &info, (GstMapFlags)GST_MAP_WRITE)) {
             memcpy(info.data, IMG_data, buffersize);
@@ -131,7 +116,7 @@ static void need_data (GstElement * appsrc, guint unused, MyContext * ctx){
     ctx->white = !ctx->white;
 
     GST_BUFFER_PTS (buffer) = ctx->timestamp;
-    GST_BUFFER_DURATION (buffer) = gst_util_uint64_scale_int (67, GST_MSECOND, 1);
+    GST_BUFFER_DURATION (buffer) = gst_util_uint64_scale_int (15, GST_MSECOND, 1);
     ctx->timestamp += GST_BUFFER_DURATION (buffer);
 
     //segnalo che ho abbastanza dati da fornire ad appsrc:
@@ -169,18 +154,13 @@ media_configure (GstRTSPMediaFactory * factory, GstRTSPMedia * media,
   appsrc = gst_bin_get_by_name_recurse_up (GST_BIN (element), "mysrc");
 
   /* this instructs appsrc that we will be dealing with timed buffer */
-  //g_object_set (G_OBJECT (appsrc), "is-live" , TRUE ,  NULL);
-  //g_object_set (G_OBJECT (appsrc), "min-latency" , 67000000 ,  NULL);  
-  g_object_set (G_OBJECT (appsrc), 
-		"stream-type" , 0 ,
-		"format" , GST_FORMAT_TIME , NULL);
-  
+  gst_util_set_object_arg (G_OBJECT (appsrc), "format", "time");
 
   g_object_set (G_OBJECT (appsrc), "caps",
       gst_caps_new_simple ("video/x-raw",
           "format", G_TYPE_STRING, "RGB",
-          "width", G_TYPE_INT, 640,
-          "height", G_TYPE_INT, 480,
+          "width", G_TYPE_INT, cameraWidth,
+          "height", G_TYPE_INT, cameraHeight,
           "framerate", GST_TYPE_FRACTION, 15, 1,
 	"pixel-aspect-ratio", GST_TYPE_FRACTION, 1, 1, NULL), NULL);
 /*
@@ -241,7 +221,7 @@ media_configure (GstRTSPMediaFactory * factory, GstRTSPMedia * media,
 
 void *thread2new(void *arg){
 
-    App * app = &s_app; //struttura dati di gstramer
+    //App * app = &s_app; //struttura dati di gstramer
     GstCaps * caps2;  
     GstCaps * caps3;
     GstFlowReturn ret;
@@ -263,19 +243,16 @@ void *thread2new(void *arg){
     factory = gst_rtsp_media_factory_new ();
 
 
-
-/*    gst_rtsp_media_factory_set_launch (factory,
-      "( appsrc name=mysrc ! videoconvert ! capsfilter caps=video/x-raw,format=I420,width=640,height=480,framerate=15/1,pixel-aspect-ratio=1/1 ! x264enc noise-reduction=10000 tune=zerolatency ! rtph264pay config-interval=1 name=pay0 pt=96 )");
-*/
-/*
-	gst_rtsp_media_factory_set_launch (factory,
-      "( appsrc name=mysrc ! videoconvert ! capsfilter caps=video/x-raw,format=I420,width=640,height=480,framerate=15/1,pixel-aspect-ratio=1/1 ! jpegenc tune=zerolatency ! rtpjpegpay name=pay0 pt=96 )");*/
-
+    //jpegenc, width và height trong capsfilter = cameraWidth và cameraHeight
     gst_rtsp_media_factory_set_launch (factory,
-      "( appsrc name=mysrc ! videoconvert ! capsfilter caps=video/x-raw,format=I420,width=640,height=480,framerate=15/1,pixel-aspect-ratio=1/1 ! tee name=\"local\" ! queue ! ximagesink local. ! queue ! x264enc noise-reduction=10000 tune=zerolatency ! rtph264pay config-interval=1 name=pay0 pt=96 )");
+      "( appsrc name=mysrc ! videoconvert ! capsfilter caps=video/x-raw,format=I420,width=640,height=480,framerate=15/1,pixel-aspect-ratio=1/1 ! jpegenc tune=zerolatency pass=qual ! rtpjpegpay name=pay0 pt=96 )");
 
-/*	gst_rtsp_media_factory_set_launch (factory,
-      "( v4l2src ! video/x-raw,width=640,height=480 ! timeoverlay ! tee name=\"local\" ! queue ! autovideosink local. ! queue ! jpegenc ! rtpjpegpay name=pay0 pt=96 )");*/
+
+    //x264enc, width và height trong capsfilter = cameraWidth và cameraHeight
+/*
+    gst_rtsp_media_factory_set_launch (factory,
+      "( appsrc name=mysrc ! videoconvert ! capsfilter caps=video/x-raw,format=I420,width=640,height=480,framerate=15/1,pixel-aspect-ratio=1/1 ! x264enc bitrate=256 noise-reduction=10000 tune=zerolatency pass=qual ! rtph264pay config-interval=1 name=pay0 pt=96 )");
+*/
 
     g_signal_connect (factory, "media-configure", (GCallback) media_configure, NULL);
     //g_signal_connect (app->videosrc, "need-data", G_CALLBACK (start_feed), app);
@@ -303,28 +280,29 @@ void *thread2new(void *arg){
 void *thread1(void *arg){
     VideoCapture cap(0);
     Mat tempframe, result;
-    //FireDetection FD;
+    FireDetection FD;
 
     if (!cap.isOpened()) {
         throw "Error when reading steam_avi";
     }
+	//cap.set(CV_CAP_PROP_FRAME_WIDTH, 720);
+	//cap.set(CV_CAP_PROP_FRAME_HEIGHT, 480);
+
 
     while (1) {
    
-        cap.read(tempframe);
-	
+        cap.read(frameimage);
 	//tempframe = imread("2.jpg");
 	//if(! tempframe.data ){ //nel caso in cui non la trova
       	//	cout <<  "Could not open or find image" << std::endl ;
         //}
 	//FD.fireDetection(tempframe,result);   
-	//imshow("frame",tempframe);
-	//waitKey(20);
+
         pthread_mutex_lock( &m ); 
 
-                frameimage = tempframe;
+                //frameimage = tempframe;
 		//frameimage = result;
-		//resize(tempframe,frameimage,Size(1280,720),0,0,INTER_CUBIC);
+
                 cv::cvtColor(frameimage, frameimage,CV_BGR2RGB);
  
                 
