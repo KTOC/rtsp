@@ -19,15 +19,19 @@
 //#include <pthread.h>
 #include <stdlib.h>
 
-
+#define _1080_P_
        
 using namespace std;
 using namespace cv;
 
-
-int cameraWidth = 720;
-int cameraHeight = 480;
-
+#ifdef _720_P_
+int cameraWidth = 1280;
+int cameraHeight = 720;
+#endif
+#ifdef _1080_P_
+int cameraWidth = 1920;
+int cameraHeight = 1080;
+#endif
 static pthread_mutex_t m = PTHREAD_MUTEX_INITIALIZER; //mutex per la mutua esclusione
 GMainLoop *loop; //loop di gstreamer
 //typedef struct _App App;
@@ -66,8 +70,9 @@ typedef struct
 //cv::Mat dst_roi;
 //cv::Mat win;
     
-Mat frameimage;    
-    
+//Mat frameimage;    
+ Mat frameimage = cv::Mat(cv::Size(cameraWidth, cameraHeight),
+                   CV_8UC3)   ;
 /*
  cb_need_data: funzione che inserisce nel buffer il frame ricevuto dal thread 
  OpenCVthread e lo passa all'elemento appsrc di gstreamer
@@ -232,16 +237,21 @@ void *thread2new(void *arg){
 
     factory = gst_rtsp_media_factory_new ();
 
-
+#ifdef _720_P_
     //jpegenc, width và height trong capsfilter = cameraWidth và cameraHeight
     gst_rtsp_media_factory_set_launch (factory,
-      "( appsrc name=mysrc ! videoconvert ! capsfilter caps=video/x-raw,format=I420,width=640,height=480,framerate=15/1,pixel-aspect-ratio=1/1 ! jpegenc tune=zerolatency pass=qual ! rtpjpegpay name=pay0 pt=96 )");
-
+      "( appsrc name=mysrc ! videoconvert ! capsfilter caps=video/x-raw,format=I420,width=1280,height=720,framerate=15/1,pixel-aspect-ratio=1/1 ! jpegenc tune=zerolatency pass=qual ! rtpjpegpay name=pay0 pt=96 )");
+#endif
+#ifdef _1080_P_
+    //jpegenc, width và height trong capsfilter = cameraWidth và cameraHeight
+    gst_rtsp_media_factory_set_launch (factory,
+      "( appsrc name=mysrc ! videoconvert ! capsfilter caps=video/x-raw,format=I420,width=1920,height=1080,framerate=15/1,pixel-aspect-ratio=1/1 ! jpegenc tune=zerolatency pass=qual ! rtpjpegpay name=pay0 pt=96 )");
+#endif
 
     //x264enc, width và height trong capsfilter = cameraWidth và cameraHeight
 /*
     gst_rtsp_media_factory_set_launch (factory,
-      "( appsrc name=mysrc ! videoconvert ! capsfilter caps=video/x-raw,format=I420,width=720,height=480,framerate=15/1,pixel-aspect-ratio=1/1 ! x264enc bitrate=256 noise-reduction=10000 tune=zerolatency pass=qual ! rtph264pay config-interval=1 name=pay0 pt=96 )");
+      "( appsrc name=mysrc ! videoconvert ! capsfilter caps=video/x-raw,format=I420,width=640,height=480,framerate=15/1,pixel-aspect-ratio=1/1 ! x264enc bitrate=256 noise-reduction=10000 tune=zerolatency pass=qual ! rtph264pay config-interval=1 name=pay0 pt=96 )");
 */
 
     g_signal_connect (factory, "media-configure", (GCallback) media_configure, NULL);
@@ -268,20 +278,20 @@ void *thread2new(void *arg){
 
 
 void *thread1(void *arg){
-    VideoCapture cap(0);
+    VideoCapture cap(1);
     Mat tempframe, result;
    // FireDetection FD;
 
     if (!cap.isOpened()) {
         throw "Error when reading steam_avi";
     }
-	cap.set(CV_CAP_PROP_FRAME_WIDTH, 720);
-	cap.set(CV_CAP_PROP_FRAME_HEIGHT, 480);
+	cap.set(CV_CAP_PROP_FRAME_WIDTH, cameraWidth);
+	cap.set(CV_CAP_PROP_FRAME_HEIGHT, cameraHeight);
 
 
     while (1) {
    
-        cap.read(frameimage);
+        cap.read(tempframe);
 	//tempframe = imread("2.jpg");
 	//if(! tempframe.data ){ //nel caso in cui non la trova
       	//	cout <<  "Could not open or find image" << std::endl ;
@@ -292,9 +302,9 @@ void *thread1(void *arg){
 
                 //frameimage = tempframe;
 		//frameimage = result;
-
+resize(tempframe,frameimage,Size(cameraWidth, cameraHeight), 0, 0, INTER_CUBIC);
                 cv::cvtColor(frameimage, frameimage,CV_BGR2RGB);
- 
+ 		//cout << frameimage.cols;
                 
         pthread_mutex_unlock( &m );
 	//imshow("frame",tempframe);
